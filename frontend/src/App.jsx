@@ -252,7 +252,9 @@ function App() {
         </tbody>
       </table>
 
-      <h2 style={{ marginTop: '2rem' }}>Summary</h2>
+      <h2 style={{ marginTop: '2rem' }}>
+        Summary <span style={{ fontSize: '0.8rem', fontWeight: 'normal' }}>({filter.replaceAll('_', ' ')})</span>
+      </h2>
       <table style={{ width: '100%', marginTop: '1rem', borderCollapse: 'collapse' }}>
         <thead>
           <tr style={{ textAlign: 'left', borderBottom: '2px solid #ddd' }}>
