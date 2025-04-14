@@ -6,7 +6,7 @@ Track Manual Frequency Restoration Reserve (MFFR) signals, power usage, prices, 
 
 ### 1. Clone the Repository
 ```bash
-git clone https://github.com/yourusername/mffr-profit-tracker.git
+git clone https://github.com/martinarva/mffr-profit-tracker.git
 cd mffr-profit-tracker
 ```
 
