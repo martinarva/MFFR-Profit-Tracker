@@ -147,13 +147,20 @@ function App() {
     }
   );
 
+
+
   const formatVal = (val, digits = 2) => (val ? val.toFixed(digits) : '-');
-  const percent = (count, total) => (total ? `${((count / total) * 100).toFixed(1)}%` : '-');
+  const percent = (count, total) => (total ? `${Math.round((count / total) * 100)}%` : '-');
   const formatDuration = (minutes) => {
     if (!minutes) return '-';
     const h = Math.floor(minutes / 60);
     const m = minutes % 60;
     return `${h}h ${m}min`;
+  };
+
+  const signalSplit = {
+    up: percent(summary.up.count, summary.total.count),
+    down: percent(summary.down.count, summary.total.count),
   };
 
   return (
@@ -250,6 +257,7 @@ function App() {
         <thead>
           <tr style={{ textAlign: 'left', borderBottom: '2px solid #ddd' }}>
             <th></th>
+            <th>Split</th>
             <th>Count</th>
             <th>Energy (kWh)</th>
             <th>Profit (€)</th>
@@ -261,6 +269,7 @@ function App() {
         <tbody>
           <tr>
             <td data-label="Type"><strong>DOWN</strong></td>
+            <td>{signalSplit.down}</td>
             <td data-label="Count">{summary.down.count}</td>
             <td data-label="Energy (kWh)">{formatVal(summary.down.energy)}</td>
             <td data-label="Profit (€)">{formatVal(summary.down.profit, 3)}</td>
@@ -270,6 +279,7 @@ function App() {
           </tr>
           <tr>
             <td data-label="Type"><strong>UP</strong></td>
+            <td>{signalSplit.up}</td>
             <td data-label="Count">{summary.up.count}</td>
             <td data-label="Energy (kWh)">{formatVal(summary.up.energy)}</td>
             <td data-label="Profit (€)">{formatVal(summary.up.profit, 3)}</td>
@@ -279,6 +289,7 @@ function App() {
           </tr>
           <tr>
             <td data-label="Type"><strong>Total</strong></td>
+            <td></td>
             <td data-label="Count">{summary.total.count}</td>
             <td data-label="Energy (kWh)">{formatVal(summary.total.energy)}</td>
             <td data-label="Profit (€)">{formatVal(summary.total.profit, 3)}</td>
