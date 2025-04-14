@@ -1,0 +1,6 @@
+requests
+apscheduler
+pytz
+fastapi
+uvicorn[standard]
+sqlite-utils
