@@ -266,7 +266,10 @@ function App() {
             <th>Signal</th>
             <th>Battery (kWh)</th>
             <th>Grid (kWh)</th>
-            <th>Profit</th>
+            <th>NPS €</th>
+            <th>MFFR €</th>
+            <th>Net</th>
+            <th>€/mWh</th>
             <th>MFFR (€/mWh)</th>
             <th>NPS (€/mWh)</th>
             <th>Start</th>
@@ -274,11 +277,6 @@ function App() {
             <th>Duration</th>
             <th>Backup</th>
             <th>Cancelled</th>
-            <th>Grid €</th>
-            <th>Fusebox €</th>
-            <th>FFR €</th>
-            <th>Net</th>
-            <th>€/mWh</th>
           </tr>
         </thead>
         <tbody>
@@ -291,7 +289,18 @@ function App() {
               </td>
               <td data-label="Battery (kWh)">{entry.energy_kwh?.toFixed(2)}</td>
               <td data-label="Grid (kWh)">{entry.grid_kwh?.toFixed(2)}</td>
-              <td data-label="Profit">{entry.profit === null ? '-' : `${entry.profit.toFixed(3)} €`}</td>
+              <td style={{ color: 'red' }}>{safeFixed(entry.grid_cost * -1)}</td>  
+              <td data-label="Profit" style={{ color: 'green' }}>
+                {entry.profit === null ? '-' : `${entry.profit.toFixed(3)} €`}
+              </td>
+              <td style={{ color: entry.net_total >= 0 ? 'green' : 'red' }}>
+                {safeFixed(entry.net_total)}
+              </td>
+              <td style={{ color: entry.price_per_kwh >= 0 ? 'green' : 'red' }}>
+                {typeof entry.price_per_kwh === 'number'
+                  ? `${(entry.price_per_kwh * 1000).toFixed(2)}`
+                  : '-'}
+              </td>
               <td data-label="MFFR (€/mWh)">{entry.mffr_price === null ? '-' : entry.mffr_price}</td>
               <td data-label="NPS (€/mWh)">{entry.nordpool_price === null ? '-' : (entry.nordpool_price * 1000).toFixed(2)}</td>
               <td data-label="Start">
@@ -314,19 +323,7 @@ function App() {
               </td>
               <td data-label="Duration">{entry.duration ?? '-'}</td>
               <td data-label="Backup">{entry.was_backup === undefined ? '-' : entry.was_backup ? 'Yes' : 'No'}</td>
-              <td data-label="Cancelled">{entry.cancelled === undefined ? '-' : entry.cancelled ? 'Yes' : 'No'}</td>
-              <td style={{ color: 'red' }}>{safeFixed(entry.grid_cost)}</td>
-              <td style={{ color: 'red' }}>{safeFixed(entry.fusebox_fee)}</td>
-              <td style={{ color: 'green' }}>{safeFixed(entry.ffr_income)}</td>            
-              <td style={{ color: entry.net_total >= 0 ? 'green' : 'red' }}>
-                {safeFixed(entry.net_total)}
-              </td>
-
-              <td style={{ color: entry.price_per_kwh >= 0 ? 'green' : 'red' }}>
-                {typeof entry.price_per_kwh === 'number'
-                  ? `${(entry.price_per_kwh * 1000).toFixed(2)}`
-                  : '-'}
-              </td>
+              <td data-label="Cancelled">{entry.cancelled === undefined ? '-' : entry.cancelled ? 'Yes' : 'No'}</td>        
             </tr>
           ))}
         </tbody>
