@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import './App.css';
 
 function App() {
+  const [darkMode, setDarkMode] = useState(true);
   const [data, setData] = useState([]);
   const [filter, setFilter] = useState('today');
   const [customRange, setCustomRange] = useState({ from: '', to: '' });
@@ -164,7 +165,7 @@ function App() {
   };
 
   return (
-    <div style={{ padding: '2rem' }}>
+    <div className={darkMode ? 'dark' : 'light'} style={{ padding: '2rem' }}>
       <h1 style={{ fontSize: '2rem', fontWeight: 'bold' }}>MFFR Profit Tracker</h1>
 
       <div style={{ marginBottom: '1rem' }}>
@@ -195,6 +196,21 @@ function App() {
             />
           </>
         )}
+
+        <button
+          onClick={() => setDarkMode(!darkMode)}
+          style={{
+            marginLeft: '1rem',
+            padding: '0.25rem 0.5rem',
+            backgroundColor: darkMode ? '#eee' : '#333',
+            color: darkMode ? '#000' : '#fff',
+            border: '1px solid #888',
+            borderRadius: '4px',
+            cursor: 'pointer'
+          }}
+        >
+          {darkMode ? 'Light Mode' : 'Dark Mode'}
+        </button>
       </div>
 
       <table style={{ width: '100%', marginTop: '1rem', borderCollapse: 'collapse' }}>
