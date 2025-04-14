@@ -13,6 +13,7 @@ HA_URL = os.getenv("HA_URL", "http://localhost:8123")
 HA_TOKEN = os.getenv("HA_TOKEN")
 SENSOR_MODE = os.environ["SENSOR_MODE"]
 SENSOR_POWER = os.environ["SENSOR_POWER"]
+SENSOR_GRID = os.environ["SENSOR_GRID"]
 SENSOR_NORDPOOL = os.environ["SENSOR_NORDPOOL"]
 
 # Setup the schema once (outside scheduler)
@@ -23,6 +24,7 @@ init_db["slots"].create({
     "end": str,
     "signal": str,
     "energy_kwh": float,
+    "grid_kwh": float,
     "mffr_price": float,
     "nordpool_price": float,
     "profit": float,
@@ -31,6 +33,21 @@ init_db["slots"].create({
     "was_backup": bool,
     "slot_end": str
 }, pk="timeslot", if_not_exists=True)
+
+# Ensure new financial columns exist (safe for existing dbs)
+required_columns = {
+    "grid_cost": float,
+    "ffr_income": float,
+    "fusebox_fee": float,
+    "net_total": float,
+    "price_per_kwh": float,
+    "grid_kwh": float,
+}
+
+for column, col_type in required_columns.items():
+    if column not in init_db["slots"].columns_dict:
+        print(f"🛠️  Adding missing column '{column}' to 'slots' table")
+        init_db["slots"].add_column(column, col_type)
 
 last_signal = None
 last_logged_signal = None
@@ -82,6 +99,15 @@ def write_current_timeslot():
     raw_energy_kwh = (power / 1000) * (10 / 3600)
     energy_kwh = round(abs(raw_energy_kwh), 5)
 
+    grid_str = get_sensor_state(SENSOR_GRID)
+    try:
+        grid_power = float(grid_str)
+    except (TypeError, ValueError):
+        grid_power = 0.0
+
+    raw_grid_energy_kwh = (grid_power / 1000) * (10 / 3600)
+    grid_kwh = round(raw_grid_energy_kwh, 5)
+
     try:
         row = db["slots"].get(key)
     except NotFoundError:
@@ -101,6 +127,7 @@ def write_current_timeslot():
                 update_data = {
                     "timeslot": key,
                     "energy_kwh": round(row["energy_kwh"] + energy_kwh, 5),
+                    "grid_kwh": round(row.get("grid_kwh", 0.0) + grid_kwh, 5),
                     "end": now.isoformat(),
                     "duration_min": duration,
                     "cancelled": cancelled,
@@ -115,6 +142,7 @@ def write_current_timeslot():
                 "end": now.isoformat(),
                 "signal": signal,
                 "energy_kwh": energy_kwh,
+                "grid_kwh": grid_kwh,
                 "mffr_price": None,
                 "nordpool_price": None,
                 "profit": None,

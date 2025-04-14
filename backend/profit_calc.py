@@ -9,45 +9,67 @@ tz = pytz.timezone("Europe/Tallinn")
 scheduler = BackgroundScheduler()
 
 def run_profit_calculation():
-    db = Database(DB_PATH)  # 🔄 Create DB connection inside the thread
+    db = Database(DB_PATH)
     now = datetime.now(tz)
     updated = False
 
-    for row in db["slots"].rows_where("profit IS NULL"):
+    for row in db["slots"].rows_where("profit IS NULL OR net_total IS NULL"):
         try:
             slot_end = datetime.fromisoformat(row["slot_end"])
             if slot_end > now:
-                continue  # Skip ongoing slots
+                continue  # skip ongoing slots
         except Exception:
             continue
 
-        if not all(k in row for k in ["signal", "energy_kwh", "mffr_price", "nordpool_price"]):
-            continue
-        if any(row[k] is None for k in ["signal", "energy_kwh", "mffr_price", "nordpool_price"]):
-            continue
+        direction = row.get("signal")
+        energy_kwh = row.get("energy_kwh")
+        grid_kwh = row.get("grid_kwh")
+        mffr_price = row.get("mffr_price")
+        nordpool_price = row.get("nordpool_price")
 
-        mffr = row["mffr_price"] / 1000  # Convert to €/kWh
-        nps = row["nordpool_price"]
-        kwh = row["energy_kwh"]
-        direction = row["signal"]
+        if direction is None or energy_kwh is None:
+            continue
 
         profit = None
-        if direction == "DOWN":
-            profit = (nps - mffr) * kwh * 0.8
-        elif direction == "UP":
-            profit = (mffr - nps) * kwh * 0.8
+        update_fields = {}
 
-        if profit is not None:
-            rounded_profit = round(profit, 5)
-            db["slots"].update(
-                row["timeslot"], 
-                {"profit": rounded_profit},
-                alter=True,
-            )
+        # Convert prices to €/kWh
+        mffr = mffr_price / 1000 if mffr_price is not None else None
+        nps = nordpool_price if nordpool_price is not None else None
+
+        # 🔹 Profit (original logic)
+        if mffr is not None and nps is not None:
+            if direction == "DOWN":
+                profit = (nps - mffr) * energy_kwh * 0.8
+            elif direction == "UP":
+                profit = (mffr - nps) * energy_kwh * 0.8
+
+            if profit is not None:
+                update_fields["profit"] = round(profit, 5)
+
+        # 🔹 DOWN signal breakdown (if all relevant fields are present)
+        if direction == "DOWN" and None not in (grid_kwh, mffr, nps):
+            ffr_income_per_kwh = nps - mffr
+            ffr_income = ffr_income_per_kwh * energy_kwh
+            fusebox_fee = ffr_income_per_kwh * 0.2 * energy_kwh
+            grid_cost = nps * 1.22 * grid_kwh
+            net_total = ffr_income - fusebox_fee - grid_cost
+            price_per_kwh = net_total / energy_kwh if energy_kwh else None
+
+            update_fields.update({
+                "ffr_income": round(ffr_income, 5),
+                "fusebox_fee": round(fusebox_fee, 5),
+                "grid_cost": round(grid_cost, 5),
+                "net_total": round(net_total, 5),
+                "price_per_kwh": round(price_per_kwh, 5) if price_per_kwh is not None else None,
+            })
+
+        if update_fields:
+            db["slots"].update(row["timeslot"], update_fields, alter=True)
             updated = True
-            print(f"💰 {direction} | Slot: {row['timeslot']} | Profit: {rounded_profit} €")
+            print(f"📊 Updated slot {row['timeslot']} → {update_fields}")
 
     if updated:
-        print("✅ Profit values updated in SQLite DB.")
+        print("✅ Profit + financial breakdown updated.")
 
 scheduler.add_job(run_profit_calculation, "interval", minutes=1)

@@ -13,6 +13,7 @@ services:
       - HA_TOKEN=${HA_TOKEN}
       - SENSOR_MODE=${SENSOR_MODE}
       - SENSOR_POWER=${SENSOR_POWER}
+      - SENSOR_GRID=${SENSOR_GRID}
       - SENSOR_NORDPOOL=${SENSOR_NORDPOOL}
     restart: unless-stopped
 

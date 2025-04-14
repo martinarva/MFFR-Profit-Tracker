@@ -6,7 +6,8 @@ function App() {
   const [data, setData] = useState([]);
   const [filter, setFilter] = useState('today');
   const [customRange, setCustomRange] = useState({ from: '', to: '' });
-
+  const safeFixed = (val, digits = 3, suffix = '€') =>
+    typeof val === 'number' ? `${val.toFixed(digits)} ${suffix}` : '-';
   useEffect(() => {
     fetch('http://192.168.1.12:8099/api/mffr')
       .then((res) => res.json())
@@ -111,40 +112,84 @@ function App() {
     (acc, entry) => {
       const signal = entry.signal;
       const energy = entry.energy_kwh || 0;
+      const gridEnergy = entry.grid_kwh || 0;
       const profit = entry.profit || 0;
       const duration = entry.duration || 0;
       const isBackup = Boolean(entry.was_backup);
       const isCancelled = Boolean(entry.cancelled);
-
+  
+      const gridCost = entry.grid_cost || 0;
+      const fuseboxFee = entry.fusebox_fee || 0;
+      const ffrIncome = entry.ffr_income || 0;
+      const netTotal = entry.net_total || 0;
+      const pricePerKwh = typeof entry.price_per_kwh === 'number' ? entry.price_per_kwh : null;
+  
+      // Track totals
       acc.total.energy += energy;
+      acc.total.grid_energy += gridEnergy;
       acc.total.profit += profit;
       acc.total.duration += duration;
       acc.total.backup += isBackup ? 1 : 0;
       acc.total.cancelled += isCancelled ? 1 : 0;
-
+      acc.total.grid += gridCost;
+      acc.total.fusebox += fuseboxFee;
+      acc.total.ffr += ffrIncome;
+      acc.total.net += netTotal;
+      if (pricePerKwh !== null) {
+        acc.total.priceSum += pricePerKwh;
+        acc.total.priceCount += 1;
+      }
+  
       if (signal === 'UP') {
         acc.up.energy += energy;
+        acc.up.grid_energy += gridEnergy;
         acc.up.profit += profit;
         acc.up.duration += duration;
         acc.up.count++;
         acc.up.backup += isBackup ? 1 : 0;
         acc.up.cancelled += isCancelled ? 1 : 0;
+        acc.up.grid += gridCost;
+        acc.up.fusebox += fuseboxFee;
+        acc.up.ffr += ffrIncome;
+        acc.up.net += netTotal;
+        if (pricePerKwh !== null) {
+          acc.up.priceSum += pricePerKwh;
+          acc.up.priceCount += 1;
+        }
       } else if (signal === 'DOWN') {
         acc.down.energy += energy;
+        acc.down.grid_energy += gridEnergy;
         acc.down.profit += profit;
         acc.down.duration += duration;
         acc.down.count++;
         acc.down.backup += isBackup ? 1 : 0;
         acc.down.cancelled += isCancelled ? 1 : 0;
+        acc.down.grid += gridCost;
+        acc.down.fusebox += fuseboxFee;
+        acc.down.ffr += ffrIncome;
+        acc.down.net += netTotal;
+        if (pricePerKwh !== null) {
+          acc.down.priceSum += pricePerKwh;
+          acc.down.priceCount += 1;
+        }
       }
-
+  
       acc.total.count++;
       return acc;
     },
     {
-      up: { energy: 0, profit: 0, duration: 0, count: 0, backup: 0, cancelled: 0 },
-      down: { energy: 0, profit: 0, duration: 0, count: 0, backup: 0, cancelled: 0 },
-      total: { energy: 0, profit: 0, duration: 0, count: 0, backup: 0, cancelled: 0 },
+      up: {
+        energy: 0, grid_energy: 0, profit: 0, duration: 0, count: 0,
+        backup: 0, cancelled: 0, grid: 0, fusebox: 0, ffr: 0, net: 0, priceSum: 0, priceCount: 0
+      },
+      down: {
+        energy: 0, grid_energy: 0, profit: 0, duration: 0, count: 0,
+        backup: 0, cancelled: 0, grid: 0, fusebox: 0, ffr: 0, net: 0, priceSum: 0, priceCount: 0
+      },
+      total: {
+        energy: 0, grid_energy: 0, profit: 0, duration: 0, count: 0,
+        backup: 0, cancelled: 0, grid: 0, fusebox: 0, ffr: 0, net: 0, priceSum: 0, priceCount: 0
+      },
     }
   );
 
@@ -219,7 +264,8 @@ function App() {
             <th>Date</th>
             <th>Time</th>
             <th>Signal</th>
-            <th>Energy (kWh)</th>
+            <th>Battery (kWh)</th>
+            <th>Grid (kWh)</th>
             <th>Profit</th>
             <th>MFFR (€/mWh)</th>
             <th>NPS (€/mWh)</th>
@@ -228,6 +274,11 @@ function App() {
             <th>Duration</th>
             <th>Backup</th>
             <th>Cancelled</th>
+            <th>Grid €</th>
+            <th>Fusebox €</th>
+            <th>FFR €</th>
+            <th>Net</th>
+            <th>€/mWh</th>
           </tr>
         </thead>
         <tbody>
@@ -238,7 +289,8 @@ function App() {
               <td data-label="Signal" style={{ color: entry.signal === 'UP' ? 'green' : 'red', fontWeight: 'bold' }}>
                 {entry.signal}
               </td>
-              <td data-label="Energy (kWh)">{entry.energy_kwh?.toFixed(2)}</td>
+              <td data-label="Battery (kWh)">{entry.energy_kwh?.toFixed(2)}</td>
+              <td data-label="Grid (kWh)">{entry.grid_kwh?.toFixed(2)}</td>
               <td data-label="Profit">{entry.profit === null ? '-' : `${entry.profit.toFixed(3)} €`}</td>
               <td data-label="MFFR (€/mWh)">{entry.mffr_price === null ? '-' : entry.mffr_price}</td>
               <td data-label="NPS (€/mWh)">{entry.nordpool_price === null ? '-' : (entry.nordpool_price * 1000).toFixed(2)}</td>
@@ -263,6 +315,18 @@ function App() {
               <td data-label="Duration">{entry.duration ?? '-'}</td>
               <td data-label="Backup">{entry.was_backup === undefined ? '-' : entry.was_backup ? 'Yes' : 'No'}</td>
               <td data-label="Cancelled">{entry.cancelled === undefined ? '-' : entry.cancelled ? 'Yes' : 'No'}</td>
+              <td style={{ color: 'red' }}>{safeFixed(entry.grid_cost)}</td>
+              <td style={{ color: 'red' }}>{safeFixed(entry.fusebox_fee)}</td>
+              <td style={{ color: 'green' }}>{safeFixed(entry.ffr_income)}</td>            
+              <td style={{ color: entry.net_total >= 0 ? 'green' : 'red' }}>
+                {safeFixed(entry.net_total)}
+              </td>
+
+              <td style={{ color: entry.price_per_kwh >= 0 ? 'green' : 'red' }}>
+                {typeof entry.price_per_kwh === 'number'
+                  ? `${(entry.price_per_kwh * 1000).toFixed(2)}`
+                  : '-'}
+              </td>
             </tr>
           ))}
         </tbody>
@@ -273,48 +337,71 @@ function App() {
       </h2>
       <table style={{ width: '100%', marginTop: '1rem', borderCollapse: 'collapse' }}>
         <thead>
-          <tr style={{ textAlign: 'left', borderBottom: '2px solid #ddd' }}>
-            <th></th>
-            <th>Split</th>
-            <th>Count</th>
-            <th>Energy (kWh)</th>
-            <th>Profit (€)</th>
-            <th>Duration</th>
-            <th>Backup %</th>
-            <th>Cancelled %</th>
-          </tr>
+        <tr style={{ textAlign: 'left', borderBottom: '2px solid #ddd' }}>
+          <th></th>
+          <th>Split</th>
+          <th>Count</th>
+          <th>Duration</th>
+          <th>Battery (kWh)</th>
+          <th>Grid (kWh)</th>
+          <th>MFFR  (€)</th>
+          <th>NPS €</th>
+          <th>Net</th>
+          <th>€/MWh avg</th>
+
+          <th>Backup %</th>
+          <th>Cancelled %</th>
+        </tr>
         </thead>
         <tbody>
-          <tr>
-            <td data-label="Type"><strong>DOWN</strong></td>
-            <td>{signalSplit.down}</td>
-            <td data-label="Count">{summary.down.count}</td>
-            <td data-label="Energy (kWh)">{formatVal(summary.down.energy)}</td>
-            <td data-label="Profit (€)">{formatVal(summary.down.profit, 3)}</td>
-            <td data-label="Duration">{formatDuration(summary.down.duration)}</td>
-            <td data-label="Backup %">{percent(summary.down.backup, summary.down.count)}</td>
-            <td data-label="Cancelled %">{percent(summary.down.cancelled, summary.down.count)}</td>
-          </tr>
-          <tr>
-            <td data-label="Type"><strong>UP</strong></td>
-            <td>{signalSplit.up}</td>
-            <td data-label="Count">{summary.up.count}</td>
-            <td data-label="Energy (kWh)">{formatVal(summary.up.energy)}</td>
-            <td data-label="Profit (€)">{formatVal(summary.up.profit, 3)}</td>
-            <td data-label="Duration">{formatDuration(summary.up.duration)}</td>
-            <td data-label="Backup %">{percent(summary.up.backup, summary.up.count)}</td>
-            <td data-label="Cancelled %">{percent(summary.up.cancelled, summary.up.count)}</td>
-          </tr>
-          <tr>
-            <td data-label="Type"><strong>Total</strong></td>
-            <td></td>
-            <td data-label="Count">{summary.total.count}</td>
-            <td data-label="Energy (kWh)">{formatVal(summary.total.energy)}</td>
-            <td data-label="Profit (€)">{formatVal(summary.total.profit, 3)}</td>
-            <td data-label="Duration">{formatDuration(summary.total.duration)}</td>
-            <td data-label="Backup %">{percent(summary.total.backup, summary.total.count)}</td>
-            <td data-label="Cancelled %">{percent(summary.total.cancelled, summary.total.count)}</td>
-          </tr>
+        <tr>
+          <td><strong>DOWN</strong></td>
+          <td>{signalSplit.down}</td>
+          <td>{summary.down.count}</td>
+          <td>{formatDuration(summary.down.duration)}</td>
+          <td>{formatVal(summary.down.energy)}</td>
+          <td>{formatVal(summary.down.grid_energy)}</td>
+          <td style={{ color: 'green' }}>{formatVal(summary.down.profit, 3)}</td>
+          <td style={{ color: 'red' }}>{formatVal(summary.down.grid * -1, 3)}</td>
+          <td style={{ color: summary.up.profit >= 0 ? 'green' : 'red' }}>{formatVal(summary.down.net, 3)}</td>
+          <td style={{ color: summary.down.net >= 0 ? 'green' : 'red' }}>
+            {summary.down.grid_energy ? (summary.down.net / summary.down.grid_energy * 1000).toFixed(2) : '-'}
+          </td>
+          <td>{percent(summary.down.backup, summary.down.count)}</td>
+          <td>{percent(summary.down.cancelled, summary.down.count)}</td>
+        </tr>
+        <tr>
+          <td><strong>UP</strong></td>
+          <td>{signalSplit.up}</td>
+          <td>{summary.up.count}</td>
+          <td>{formatDuration(summary.up.duration)}</td>
+          <td>{formatVal(summary.up.energy)}</td>
+          <td>{formatVal(summary.up.grid_energy)}</td>
+          <td style={{ color: 'green' }}>{formatVal(summary.up.profit, 3)}</td>
+          <td style={{ color: 'red' }}>{formatVal(summary.up.grid * -1, 3)}</td>
+          <td style={{ color: summary.up.profit >= 0 ? 'green' : 'red' }}>{formatVal(summary.up.net, 3)}</td>
+          <td style={{ color: summary.down.net >= 0 ? 'green' : 'red' }}>
+            {summary.up.grid_energy ? (summary.up.net / summary.up.grid_energy * 1000).toFixed(2) : '-'}
+          </td>
+          <td>{percent(summary.up.backup, summary.up.count)}</td>
+          <td>{percent(summary.up.cancelled, summary.up.count)}</td>
+        </tr>
+        <tr>
+          <td><strong>Total</strong></td>
+          <td></td>
+          <td>{summary.total.count}</td>
+          <td>{formatDuration(summary.total.duration)}</td>
+          <td>{formatVal(summary.total.energy)}</td>
+          <td>{formatVal(summary.total.grid_energy)}</td>
+          <td style={{ color: 'green' }}>{formatVal(summary.total.profit, 3)}</td>
+          <td style={{ color: 'red' }}>{formatVal(summary.total.grid * -1, 3)}</td>
+          <td style={{ color: summary.up.profit >= 0 ? 'green' : 'red' }}>{formatVal(summary.total.net, 3)}</td>
+          <td style={{ color: summary.down.net >= 0 ? 'green' : 'red' }}>
+            {summary.total.grid_energy ? (summary.total.net / summary.total.grid_energy * 1000).toFixed(2) : '-'}
+          </td>
+          <td>{percent(summary.total.backup, summary.total.count)}</td>
+          <td>{percent(summary.total.cancelled, summary.total.count)}</td>
+        </tr>
         </tbody>
       </table>
     </div>
