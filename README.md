@@ -23,6 +23,8 @@ HA_URL=http://your-ha.local:8123
 HA_TOKEN=your_long_token_here
 SENSOR_MODE=input_select.battery_mode_selector
 SENSOR_POWER=sensor.ss_battery_power
+SENSOR_GRID=sensor.ss_grid_power
+
 SENSOR_NORDPOOL=sensor.nordpool_kwh_ee_eur_3_10_0
 ```
 
