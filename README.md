@@ -32,7 +32,7 @@ SENSOR_NORDPOOL=sensor.nordpool_kwh_ee_eur_3_10_0
 - `sensor.ss_battery_power`: Battery power sensor in **watts**.
 
 #### MFFR Price Source:
-- Public API: [https://tihend.energy/api/v1/frr](https://tihend.energy/api/v1/frr)
+- Public API: [https://tihend.energy/api/v1/frr](https://tihend.energy/api/v1/frr). It's hardcoded to the mffr_price_updater.py for now, so no action needed.
 
 ---
 
