@@ -363,7 +363,7 @@ function App() {
               <td data-label="Duration">{entry.duration ?? '-'}</td>
               <td data-label="Battery (kWh)">{entry.energy_kwh?.toFixed(2)}</td>
               <td data-label="Grid (kWh)">{entry.grid_kwh?.toFixed(2)}</td>
-              <td data-label="Grid (€)" style={{ color: entry.grid_cost * -1 >= 0 ? 'green' : 'red' }}>{safeFixed(entry.grid_cost * -1, 2)}</td>  
+              <td data-label="NPS (€)" style={{ color: entry.grid_cost * -1 >= 0 ? 'green' : 'red' }}>{safeFixed(entry.grid_cost * -1, 2)}</td>  
               <td data-label="MFFR (€)" style={{ color: entry.profit >= 0 ? 'green' : 'red' }}>
                 {entry.profit === null ? '-' : `${entry.profit.toFixed(2)} €`}
               </td>
