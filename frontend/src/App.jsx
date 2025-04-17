@@ -288,11 +288,11 @@ function App() {
           <td data-label="Duration (h)">{formatDuration(summary.down.duration)}</td>
           <td data-label="Battery (kWh)">{formatVal(summary.down.energy)}</td>
           <td data-label="Grid (kWh)">{formatVal(summary.down.grid_energy)}</td>
-          <td data-label="MFFR (€)" style={{ color: summary.down.profit >= 0 ? 'green' : 'red' }}>{formatVal(summary.down.profit, 3)}</td>
-          <td data-label="NPS (€)" style={{ color: summary.down.grid * -1 >= 0 ? 'green' : 'red' }}>{formatVal(summary.down.grid * -1, 3)}</td>
-          <td data-label="Net (€)" style={{ color: summary.down.net >= 0 ? 'green' : 'red' }}>{formatVal(summary.down.net, 3)}</td>
+          <td data-label="MFFR (€)" style={{ color: summary.down.profit >= 0 ? 'green' : 'red' }}>{formatVal(summary.down.profit, 2)}</td>
+          <td data-label="NPS (€)" style={{ color: summary.down.grid * -1 >= 0 ? 'green' : 'red' }}>{formatVal(summary.down.grid * -1, 2)}</td>
+          <td data-label="Net (€)" style={{ color: summary.down.net >= 0 ? 'green' : 'red' }}>{formatVal(summary.down.net, 2)}</td>
           <td data-label="€/MWh avg" style={{ color: summary.down.net >= 0 ? 'green' : 'red' }}>
-            {summary.down.grid_energy ? (summary.down.net / summary.down.grid_energy * 1000).toFixed(2) : '-'}
+            {summary.down.grid_energy ? Math.round(summary.down.net / summary.down.grid_energy * 1000) : '-'}
           </td>
           <td data-label="Backup (%)"> {percent(summary.down.backup, summary.down.count)}</td>
           <td data-label="Cancelled (%)"> {percent(summary.down.cancelled, summary.down.count)}</td>
@@ -304,11 +304,11 @@ function App() {
           <td data-label="Duration (h)">{formatDuration(summary.up.duration)}</td>
           <td data-label="Battery (kWh)">{formatVal(summary.up.energy)}</td>
           <td data-label="Grid (kWh)">{formatVal(summary.up.grid_energy)}</td>
-          <td data-label="MFFR (€)" style={{ color: summary.up.profit >= 0 ? 'green' : 'red' }}>{formatVal(summary.up.profit, 3)}</td>
-          <td data-label="NPS (€)" style={{ color: summary.up.grid * -1 >= 0 ? 'green' : 'red' }}>{formatVal(summary.up.grid * -1, 3)}</td>
-          <td data-label="Net (€)" style={{ color: summary.up.net >= 0 ? 'green' : 'red' }}>{formatVal(summary.up.net, 3)}</td>
+          <td data-label="MFFR (€)" style={{ color: summary.up.profit >= 0 ? 'green' : 'red' }}>{formatVal(summary.up.profit, 2)}</td>
+          <td data-label="NPS (€)" style={{ color: summary.up.grid * -1 >= 0 ? 'green' : 'red' }}>{formatVal(summary.up.grid * -1, 2)}</td>
+          <td data-label="Net (€)" style={{ color: summary.up.net >= 0 ? 'green' : 'red' }}>{formatVal(summary.up.net, 2)}</td>
           <td data-label="€/MWh avg" style={{ color: summary.up.net >= 0 ? 'green' : 'red' }}>
-            {summary.up.grid_energy ? (summary.up.net / summary.up.grid_energy * 1000).toFixed(2) : '-'}
+            {summary.up.grid_energy ? Math.round(summary.up.net / summary.up.grid_energy * 1000) : '-'}
           </td>
           <td data-label="Backup (%)"> {percent(summary.up.backup, summary.up.count)}</td>
           <td data-label="Cancelled (%)"> {percent(summary.up.cancelled, summary.up.count)}</td>
@@ -320,11 +320,11 @@ function App() {
           <td data-label="Duration (h)">{formatDuration(summary.total.duration)}</td>
           <td data-label="Battery (kWh)">{formatVal(summary.total.energy)}</td>
           <td data-label="Grid (kWh)">{formatVal(summary.total.grid_energy)}</td>
-          <td data-label="MFFR (€)" style={{ color: summary.total.profit >= 0 ? 'green' : 'red' }}>{formatVal(summary.total.profit, 3)}</td>
-          <td data-label="NPS (€)" style={{ color: summary.total.grid * -1 >= 0 ? 'green' : 'red' }}>{formatVal(summary.total.grid * -1, 3)}</td>
-          <td data-label="Net (€)" style={{ color: summary.total.net >= 0 ? 'green' : 'red' }}>{formatVal(summary.total.net, 3)}</td>
+          <td data-label="MFFR (€)" style={{ color: summary.total.profit >= 0 ? 'green' : 'red' }}>{formatVal(summary.total.profit, 2)}</td>
+          <td data-label="NPS (€)" style={{ color: summary.total.grid * -1 >= 0 ? 'green' : 'red' }}>{formatVal(summary.total.grid * -1, 2)}</td>
+          <td data-label="Net (€)" style={{ color: summary.total.net >= 0 ? 'green' : 'red' }}>{formatVal(summary.total.net, 2)}</td>
           <td data-label="€/MWh avg" style={{ color: summary.total.net >= 0 ? 'green' : 'red' }}>
-            {summary.total.grid_energy ? (summary.total.net / summary.total.grid_energy * 1000).toFixed(2) : '-'}
+            {summary.total.grid_energy ? Math.round(summary.total.net / summary.total.grid_energy * 1000) : '-'}
           </td>
           <td data-label="Backup (%)"> {percent(summary.total.backup, summary.total.count)}</td>
           <td data-label="Cancelled (%)"> {percent(summary.total.cancelled, summary.total.count)}</td>
@@ -363,12 +363,12 @@ function App() {
               <td data-label="Duration">{entry.duration ?? '-'}</td>
               <td data-label="Battery (kWh)">{entry.energy_kwh?.toFixed(2)}</td>
               <td data-label="Grid (kWh)">{entry.grid_kwh?.toFixed(2)}</td>
-              <td data-label="Grid (€)" style={{ color: entry.grid_cost * -1 >= 0 ? 'green' : 'red' }}>{safeFixed(entry.grid_cost * -1)}</td>  
+              <td data-label="Grid (€)" style={{ color: entry.grid_cost * -1 >= 0 ? 'green' : 'red' }}>{safeFixed(entry.grid_cost * -1, 2)}</td>  
               <td data-label="MFFR (€)" style={{ color: entry.profit >= 0 ? 'green' : 'red' }}>
-                {entry.profit === null ? '-' : `${entry.profit.toFixed(3)} €`}
+                {entry.profit === null ? '-' : `${entry.profit.toFixed(2)} €`}
               </td>
               <td data-label="Net (€)" style={{ color: entry.net_total >= 0 ? 'green' : 'red' }}>
-                {safeFixed(entry.net_total)}
+                {safeFixed(entry.net_total, 2)}
               </td>
               <td data-label="€/mWh" style={{ color: entry.price_per_kwh >= 0 ? 'green' : 'red' }}>
                 {typeof entry.price_per_kwh === 'number'
