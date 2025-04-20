@@ -269,10 +269,10 @@ function App() {
           <th>Duration</th>
           <th>Battery (kWh)</th>
           <th>Grid (kWh)</th>
-          <th>MFFR  (€)</th>
-          <th>NPS €</th>
+          <th>MFFR</th>
+          <th>NPS</th>
           <th>Net</th>
-          <th>€/MWh avg</th>
+          <th>Average</th>
           <th>Backup %</th>
           <th>Cancelled %</th>
         </tr>
@@ -282,14 +282,14 @@ function App() {
           <td><strong>DOWN</strong></td>
           <td data-label="Signal Split">{signalSplit.down}</td>
           <td data-label="Count">{summary.down.count}</td>
-          <td data-label="Duration (h)">{formatDuration(summary.down.duration)}</td>
-          <td data-label="Battery (kWh)">{formatVal(summary.down.energy)}</td>
-          <td data-label="Grid (kWh)">{formatVal(summary.down.grid_energy)}</td>
-          <td data-label="MFFR (€)" style={{ color: summary.down.profit >= 0 ? 'green' : 'red' }}>{formatVal(summary.down.profit, 2)}</td>
-          <td data-label="NPS (€)" style={{ color: summary.down.grid * -1 >= 0 ? 'green' : 'red' }}>{formatVal(summary.down.grid * -1, 2)}</td>
-          <td data-label="Net (€)" style={{ color: summary.down.net >= 0 ? 'green' : 'red' }}>{formatVal(summary.down.net, 2)}</td>
-          <td data-label="€/MWh avg" style={{ color: summary.down.net >= 0 ? 'green' : 'red' }}>
-            {summary.down.grid_energy ? Math.round(summary.down.net / summary.down.grid_energy * 1000) : '-'}
+          <td data-label="Duration">{formatDuration(summary.down.duration)}</td>
+          <td data-label="Battery">{formatVal(summary.down.energy)} kWh</td>
+          <td data-label="Grid">{formatVal(summary.down.grid_energy)} kWh</td>
+          <td data-label="MFFR" style={{ color: summary.down.profit >= 0 ? 'green' : 'red' }}>{formatVal(summary.down.profit, 2)} €</td>
+          <td data-label="NPS" style={{ color: summary.down.grid * -1 >= 0 ? 'green' : 'red' }}>{formatVal(summary.down.grid * -1, 2)} €</td>
+          <td data-label="Net" style={{ color: summary.down.net >= 0 ? 'green' : 'red' }}>{formatVal(summary.down.net, 2)} €</td>
+          <td data-label="Average" style={{ color: summary.down.net >= 0 ? 'green' : 'red' }}>
+            {summary.down.grid_energy ? Math.round(summary.down.net / summary.down.grid_energy * 1000) : '-'} €/mWh
           </td>
           <td data-label="Backup (%)"> {percent(summary.down.backup, summary.down.count)}</td>
           <td data-label="Cancelled (%)"> {percent(summary.down.cancelled, summary.down.count)}</td>
@@ -298,14 +298,14 @@ function App() {
           <td><strong>UP</strong></td>
           <td data-label="Signal Split">{signalSplit.up}</td>
           <td data-label="Count">{summary.up.count}</td>
-          <td data-label="Duration (h)">{formatDuration(summary.up.duration)}</td>
-          <td data-label="Battery (kWh)">{formatVal(summary.up.energy)}</td>
-          <td data-label="Grid (kWh)">{formatVal(summary.up.grid_energy)}</td>
-          <td data-label="MFFR (€)" style={{ color: summary.up.profit >= 0 ? 'green' : 'red' }}>{formatVal(summary.up.profit, 2)}</td>
-          <td data-label="NPS (€)" style={{ color: summary.up.grid * -1 >= 0 ? 'green' : 'red' }}>{formatVal(summary.up.grid * -1, 2)}</td>
-          <td data-label="Net (€)" style={{ color: summary.up.net >= 0 ? 'green' : 'red' }}>{formatVal(summary.up.net, 2)}</td>
-          <td data-label="€/MWh avg" style={{ color: summary.up.net >= 0 ? 'green' : 'red' }}>
-            {summary.up.energy ? Math.round(summary.up.net / summary.up.energy * 1000) : '-'}
+          <td data-label="Duration">{formatDuration(summary.up.duration)}</td>
+          <td data-label="Battery">{formatVal(summary.up.energy)} kWh</td>
+          <td data-label="Grid">{formatVal(summary.up.grid_energy)} kWh</td>
+          <td data-label="MFFR" style={{ color: summary.up.profit >= 0 ? 'green' : 'red' }}>{formatVal(summary.up.profit, 2)} €</td>
+          <td data-label="NPS" style={{ color: summary.up.grid * -1 >= 0 ? 'green' : 'red' }}>{formatVal(summary.up.grid * -1, 2)} €</td>
+          <td data-label="Net" style={{ color: summary.up.net >= 0 ? 'green' : 'red' }}>{formatVal(summary.up.net, 2)} €</td>
+          <td data-label="Average" style={{ color: summary.up.net >= 0 ? 'green' : 'red' }}>
+            {summary.up.energy ? Math.round(summary.up.net / summary.up.energy * 1000) : '-'} €/mWh
           </td>
           <td data-label="Backup (%)"> {percent(summary.up.backup, summary.up.count)}</td>
           <td data-label="Cancelled (%)"> {percent(summary.up.cancelled, summary.up.count)}</td>
@@ -314,12 +314,12 @@ function App() {
           <td><strong>Total</strong></td>
           <td></td>
           <td data-label="Count">{summary.total.count}</td>
-          <td data-label="Duration (h)">{formatDuration(summary.total.duration)}</td>
-          <td data-label="Battery (kWh)">{formatVal(summary.total.energy)}</td>
-          <td data-label="Grid (kWh)">{formatVal(summary.total.grid_energy)}</td>
-          <td data-label="MFFR (€)" style={{ color: summary.total.profit >= 0 ? 'green' : 'red' }}>{formatVal(summary.total.profit, 2)}</td>
-          <td data-label="NPS (€)" style={{ color: summary.total.grid * -1 >= 0 ? 'green' : 'red' }}>{formatVal(summary.total.grid * -1, 2)}</td>
-          <td data-label="Net (€)" style={{ color: summary.total.net >= 0 ? 'green' : 'red' }}>{formatVal(summary.total.net, 2)}</td>
+          <td data-label="Duration">{formatDuration(summary.total.duration)}</td>
+          <td data-label="Battery">{formatVal(summary.total.energy)} kWh</td>
+          <td data-label="Grid">{formatVal(summary.total.grid_energy)} kWh</td>
+          <td data-label="MFFR" style={{ color: summary.total.profit >= 0 ? 'green' : 'red' }}>{formatVal(summary.total.profit, 2)} €</td>
+          <td data-label="NPS" style={{ color: summary.total.grid * -1 >= 0 ? 'green' : 'red' }}>{formatVal(summary.total.grid * -1, 2)} €</td>
+          <td data-label="Net" style={{ color: summary.total.net >= 0 ? 'green' : 'red' }}>{formatVal(summary.total.net, 2)} €</td>
           <td></td>
           <td data-label="Backup (%)"> {percent(summary.total.backup, summary.total.count)}</td>
           <td data-label="Cancelled (%)"> {percent(summary.total.cancelled, summary.total.count)}</td>
