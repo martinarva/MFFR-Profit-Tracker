@@ -167,10 +167,7 @@ function App() {
         acc.down.grid += gridCost;
         acc.down.fusebox += fuseboxFee;
         acc.down.ffr += ffrIncome;
-        if (entry.signal === 'DOWN') {
-          const calculatedNet = (entry.ffr_income ?? 0) - (entry.grid_cost ?? 0) - (entry.fusebox_fee ?? 0);
-          acc.down.net += calculatedNet;
-        }
+        acc.down.net += netTotal;
         if (pricePerKwh !== null) {
           acc.down.priceSum += pricePerKwh;
           acc.down.priceCount += 1;
@@ -308,7 +305,7 @@ function App() {
           <td data-label="NPS (€)" style={{ color: summary.up.grid * -1 >= 0 ? 'green' : 'red' }}>{formatVal(summary.up.grid * -1, 2)}</td>
           <td data-label="Net (€)" style={{ color: summary.up.net >= 0 ? 'green' : 'red' }}>{formatVal(summary.up.net, 2)}</td>
           <td data-label="€/MWh avg" style={{ color: summary.up.net >= 0 ? 'green' : 'red' }}>
-            {summary.up.grid_energy ? Math.round(summary.up.net / summary.up.grid_energy * 1000) : '-'}
+            {summary.up.energy ? Math.round(summary.up.net / summary.up.energy * 1000) : '-'}
           </td>
           <td data-label="Backup (%)"> {percent(summary.up.backup, summary.up.count)}</td>
           <td data-label="Cancelled (%)"> {percent(summary.up.cancelled, summary.up.count)}</td>
@@ -323,9 +320,7 @@ function App() {
           <td data-label="MFFR (€)" style={{ color: summary.total.profit >= 0 ? 'green' : 'red' }}>{formatVal(summary.total.profit, 2)}</td>
           <td data-label="NPS (€)" style={{ color: summary.total.grid * -1 >= 0 ? 'green' : 'red' }}>{formatVal(summary.total.grid * -1, 2)}</td>
           <td data-label="Net (€)" style={{ color: summary.total.net >= 0 ? 'green' : 'red' }}>{formatVal(summary.total.net, 2)}</td>
-          <td data-label="€/MWh avg" style={{ color: summary.total.net >= 0 ? 'green' : 'red' }}>
-            {summary.total.grid_energy ? Math.round(summary.total.net / summary.total.grid_energy * 1000) : '-'}
-          </td>
+          <td></td>
           <td data-label="Backup (%)"> {percent(summary.total.backup, summary.total.count)}</td>
           <td data-label="Cancelled (%)"> {percent(summary.total.cancelled, summary.total.count)}</td>
         </tr>
