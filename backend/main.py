@@ -136,6 +136,11 @@ def write_current_timeslot():
                 }
                 db["slots"].update(key, update_data)
         else:
+            # Prevent false slot creation if signal was active for less than 2 seconds
+            if (now - timeslot).total_seconds() < 2:
+                print(f"⏱️ Skipped creating 1s slot at {key} due to short signal duration.")
+                return
+
             entry = {
                 "timeslot": key,
                 "start": now.isoformat(),
