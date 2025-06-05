@@ -28,8 +28,8 @@ def fetch_and_update_mffr_prices():
     try:
         response = requests.get(
             "https://tihend.energy/api/v1/frr",
-            timeout=5,  # ⏱️ Timeout here
-            verify=False
+            timeout=5  # ⏱️ Timeout here
+            #verify=False
         )
         response.raise_for_status()
         raw_data = response.json().get("data", [])
