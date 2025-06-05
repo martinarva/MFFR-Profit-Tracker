@@ -31,5 +31,19 @@ services:
     depends_on:
       - mffr-profit
 
+  nginx:
+    build:
+      context: ./nginx
+    container_name: mffr-nginx
+    volumes:
+      - nginx_certs:/etc/nginx/certs
+    ports:
+      - "443:443"
+      - "80:80"
+    depends_on:
+      - mffr-profit
+      - mffr-ui
+
 volumes:
   mffr_ui_node_modules:
+  nginx_certs:

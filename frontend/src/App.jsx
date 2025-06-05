@@ -9,7 +9,7 @@ function App() {
   const safeFixed = (val, digits = 3, suffix = '€') =>
     typeof val === 'number' ? `${val.toFixed(digits)} ${suffix}` : '-';
   useEffect(() => {
-    fetch('http://192.168.1.12:8099/api/mffr')
+    fetch('/api/mffr')
       .then((res) => res.json())
       .then((json) => {
         const enriched = Object.entries(json).map(([timeslot, entry]) => {
