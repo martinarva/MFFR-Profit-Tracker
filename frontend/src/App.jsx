@@ -289,7 +289,7 @@ function App() {
           <td data-label="NPS" style={{ color: summary.down.grid * -1 >= 0 ? 'green' : 'red' }}>{formatVal(summary.down.grid * -1, 2)} €</td>
           <td data-label="Net" style={{ color: summary.down.net >= 0 ? 'green' : 'red' }}>{formatVal(summary.down.net, 2)} €</td>
           <td data-label="Average" style={{ color: summary.down.net >= 0 ? 'green' : 'red' }}>
-            {summary.down.grid_energy ? Math.round(summary.down.net / summary.down.grid_energy * 1000) : '-'} €/mWh
+            {summary.down.grid_energy ? Math.round(summary.down.net / summary.down.grid_energy * 1000) : '-'} €/MWh
           </td>
           <td data-label="Backup (%)"> {percent(summary.down.backup, summary.down.count)}</td>
           <td data-label="Cancelled (%)"> {percent(summary.down.cancelled, summary.down.count)}</td>
@@ -305,7 +305,7 @@ function App() {
           <td data-label="NPS" style={{ color: summary.up.grid * -1 >= 0 ? 'green' : 'red' }}>{formatVal(summary.up.grid * -1, 2)} €</td>
           <td data-label="Net" style={{ color: summary.up.net >= 0 ? 'green' : 'red' }}>{formatVal(summary.up.net, 2)} €</td>
           <td data-label="Average" style={{ color: summary.up.net >= 0 ? 'green' : 'red' }}>
-            {summary.up.energy ? Math.round(summary.up.net / summary.up.energy * 1000) : '-'} €/mWh
+            {summary.up.energy ? Math.round(summary.up.net / summary.up.energy * 1000) : '-'} €/MWh
           </td>
           <td data-label="Backup (%)"> {percent(summary.up.backup, summary.up.count)}</td>
           <td data-label="Cancelled (%)"> {percent(summary.up.cancelled, summary.up.count)}</td>
@@ -338,9 +338,9 @@ function App() {
             <th>NPS €</th>
             <th>MFFR €</th>
             <th>Net</th>
-            <th>€/mWh</th>
-            <th>MFFR (€/mWh)</th>
-            <th>NPS (€/mWh)</th>
+            <th>€/MWh</th>
+            <th>MFFR (€/MWh)</th>
+            <th>NPS (€/MWh)</th>
             <th>Start</th>
             <th>End</th>            
             <th>Backup</th>
@@ -365,13 +365,13 @@ function App() {
               <td data-label="Net (€)" style={{ color: entry.net_total >= 0 ? 'green' : 'red' }}>
                 {safeFixed(entry.net_total, 2)}
               </td>
-              <td data-label="€/mWh" style={{ color: entry.price_per_kwh >= 0 ? 'green' : 'red' }}>
+              <td data-label="€/MWh" style={{ color: entry.price_per_kwh >= 0 ? 'green' : 'red' }}>
                 {typeof entry.price_per_kwh === 'number'
                   ? `${(entry.price_per_kwh * 1000).toFixed(2)}`
                   : '-'}
               </td>
-              <td data-label="MFFR (€/mWh)">{entry.mffr_price === null ? '-' : entry.mffr_price}</td>
-              <td data-label="NPS (€/mWh)">{entry.nordpool_price === null ? '-' : (entry.nordpool_price * 1000).toFixed(2)}</td>
+              <td data-label="MFFR (€/MWh)">{entry.mffr_price === null ? '-' : entry.mffr_price}</td>
+              <td data-label="NPS (€/MWh)">{entry.nordpool_price === null ? '-' : (entry.nordpool_price * 1000).toFixed(2)}</td>
               <td data-label="Start">
                 {new Date(entry.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}
               </td>
