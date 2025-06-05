@@ -141,6 +141,20 @@ def write_current_timeslot():
                 print(f"⏱️ Skipped creating 1s slot at {key} due to short signal duration.")
                 return
 
+            # ⛔ Suppress if previous slot ended very recently and had same signal
+            try:
+                prev_slot_time = timeslot - timedelta(minutes=15)
+                previous = db["slots"].get(prev_slot_time.isoformat())
+                previous_end = datetime.fromisoformat(previous["end"])
+                same_signal = previous["signal"] == signal
+                ends_close = abs((now - previous_end).total_seconds()) < 5
+
+                if same_signal and ends_close:
+                    print(f"🧹 Suppressed 0-min slot at {key} after full slot at {prev_slot_time}")
+                    return
+            except NotFoundError:
+                pass
+
             entry = {
                 "timeslot": key,
                 "start": now.isoformat(),
