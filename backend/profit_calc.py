@@ -38,7 +38,7 @@ def run_profit_calculation():
         if direction == "DOWN" and None not in (grid_kwh, mffr, nps):
             profit = (nps - mffr / 1000) * energy_kwh * 0.8
             fusebox_fee = profit / 4
-            grid_cost = nps * 1.22 * grid_kwh
+            grid_cost = nps * 1.24 * grid_kwh
             net_total = profit - grid_cost
             price_per_kwh = net_total / grid_kwh if grid_kwh and grid_kwh > 0 else None
 

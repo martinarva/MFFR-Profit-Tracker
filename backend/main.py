@@ -34,6 +34,11 @@ init_db["slots"].create({
     "slot_end": str
 }, pk="timeslot", if_not_exists=True)
 
+init_db["battery_samples"].create({
+    "timestamp": str,         # ISO8601 string
+    "battery_power": float    # From SENSOR_POWER
+}, pk="timestamp", if_not_exists=True)
+
 # Ensure new financial columns exist (safe for existing dbs)
 required_columns = {
     "grid_cost": float,
@@ -200,5 +205,29 @@ def write_current_timeslot():
         except Exception as e:
             print(f"❌ Failed to fetch Nordpool price: {e}")
 
+# def log_battery_power_sample():
+#     db = Database(DB_PATH)
+#     now = datetime.now(tz)
+#     power_str = get_sensor_state(SENSOR_POWER)
+#     try:
+#         power = float(power_str)
+#     except (TypeError, ValueError):
+#         power = 0.0
+
+#     db["battery_samples"].insert({
+#         "timestamp": now.isoformat(),
+#         "battery_power": power
+#     }, pk="timestamp", replace=True)
+#     print(f"[main.py] Sampled battery power: {power} W at {now.isoformat()}")
+
+# def cleanup_old_battery_samples():
+#     db = Database(DB_PATH)
+#     now = datetime.now(tz)
+#     one_week_ago = now - timedelta(days=7)
+#     deleted = db["battery_samples"].delete_where("timestamp < ?", [one_week_ago.isoformat()])
+#     print(f"[main.py] Deleted {deleted} old battery_samples entries before {one_week_ago.isoformat()}")
+
 scheduler = BackgroundScheduler()
 scheduler.add_job(write_current_timeslot, 'interval', seconds=10)
+# scheduler.add_job(log_battery_power_sample, 'interval', seconds=10)
+# scheduler.add_job(cleanup_old_battery_samples, 'interval', hours=1)
