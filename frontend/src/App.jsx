@@ -1,25 +1,112 @@
-import { useEffect, useState } from 'react';
+// frontend/src/App.jsx
+import { useEffect, useMemo, useState } from 'react';
 import './App.css';
+
+const API_BASE = 'http://192.168.1.12:8099'; // keep your current base
 
 function App() {
   const [darkMode, setDarkMode] = useState(false);
   const [data, setData] = useState([]);
   const [filter, setFilter] = useState('today');
   const [customRange, setCustomRange] = useState({ from: '', to: '' });
+  const [loading, setLoading] = useState(false);
+
   const safeFixed = (val, digits = 3, suffix = '€') =>
     typeof val === 'number' ? `${val.toFixed(digits)} ${suffix}` : '-';
+  const formatW = (v) => (typeof v === 'number' ? `${Math.round(v)} W` : '-');
+
+  const now = new Date();
+  const startOf = (unit) => {
+    const d = new Date(now);
+    if (unit === 'day') return new Date(d.setHours(0, 0, 0, 0));
+    if (unit === 'week') {
+      const day = d.getDay() || 7; // Monday=1..Sunday=7
+      d.setHours(0, 0, 0, 0);
+      d.setDate(d.getDate() - day + 1);
+      return d;
+    }
+    if (unit === 'month') return new Date(d.getFullYear(), d.getMonth(), 1);
+    return null;
+  };
+
+  const endOf = (unit) => {
+    const d = new Date(now);
+    if (unit === 'day') return new Date(d.setHours(23, 59, 59, 999));
+    if (unit === 'week') {
+      const start = startOf('week');
+      return new Date(start.getFullYear(), start.getMonth(), start.getDate() + 6, 23, 59, 59, 999);
+    }
+    if (unit === 'month') return new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59, 999);
+    return null;
+  };
+
+  const getFilterRange = () => {
+    switch (filter) {
+      case 'today':
+        return [startOf('day'), endOf('day')];
+      case 'yesterday': {
+        const y = new Date(now);
+        y.setDate(y.getDate() - 1);
+        const start = new Date(y.setHours(0, 0, 0, 0));
+        const end = new Date(y.setHours(23, 59, 59, 999));
+        return [start, end];
+      }
+      case 'this_week':
+        return [startOf('week'), endOf('week')];
+      case 'last_week': {
+        const sw = startOf('week');
+        sw.setDate(sw.getDate() - 7);
+        const ew = new Date(sw);
+        ew.setDate(ew.getDate() + 6);
+        return [sw, new Date(ew.setHours(23, 59, 59, 999))];
+      }
+      case 'this_month':
+        return [startOf('month'), endOf('month')];
+      case 'last_month': {
+        const lmStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        const lmEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
+        return [lmStart, lmEnd];
+      }
+      case 'custom':
+        if (!customRange.from || !customRange.to) return [null, null];
+        return [new Date(customRange.from), new Date(customRange.to)];
+      case 'all':
+      default:
+        return [null, null];
+    }
+  };
+
+  const [from, to] = getFilterRange();
+
+  // Fetch only what we need for the selected filter
   useEffect(() => {
-    fetch('http://192.168.1.12:8099/api/mffr')
-      .then((res) => res.json())
-      .then((json) => {
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        let url = `${API_BASE}/api/mffr`;
+        if (from && to) {
+          // Send ISO8601 (UTC); backend compares ISO strings safely
+          const qFrom = encodeURIComponent(from.toISOString());
+          const qTo = encodeURIComponent(new Date(to).toISOString());
+          url += `?from=${qFrom}&to=${qTo}`;
+        } else if (filter === 'all') {
+          url += `?limit=2000`; // cap "All" to something reasonable
+        } else {
+          // Fallback: if range invalid/missing, still avoid full-table dump
+          url += `?limit=1000`;
+        }
+
+        const res = await fetch(url);
+        const json = await res.json();
+
+        // json shape: { timeslotISO: row, ... }
         const enriched = Object.entries(json).map(([timeslot, entry]) => {
           const start = new Date(entry.start);
           const end = new Date(entry.end);
           const slotStart = new Date(timeslot);
           const slotEnd = new Date(slotStart);
           slotEnd.setMinutes(slotEnd.getMinutes() + 15);
-  
-          // Recalculate only if not provided
+
           const duration =
             entry.duration_min ?? Math.round((end - start) / 60000);
           const was_backup =
@@ -28,9 +115,9 @@ function App() {
           const cancelled =
             entry.cancelled ??
             end.getTime() < slotEnd.getTime() - 11000; // 11 sec buffer
-  
+
           const slot_end = entry.slot_end ?? slotEnd.toISOString();
-  
+
           return {
             timeslot,
             ...entry,
@@ -47,69 +134,30 @@ function App() {
             slotStart,
           };
         });
-        setData(enriched.reverse());
-      });
-  }, []);
 
-  const now = new Date();
-  const startOf = (unit) => {
-    const d = new Date(now);
-    if (unit === 'day') return new Date(d.setHours(0, 0, 0, 0));
-    if (unit === 'week') {
-      const day = d.getDay() || 7;
-      d.setHours(0, 0, 0, 0);
-      d.setDate(d.getDate() - day + 1);
-      return d;
-    }
-    if (unit === 'month') return new Date(d.getFullYear(), d.getMonth(), 1);
-  };
+        // Backend returns newest first; keep same UX as before (reverse to old order if desired)
+        setData(enriched); // already desc; or use enriched.reverse() if you prefer asc
+      } catch (e) {
+        console.error('Fetch failed', e);
+        setData([]);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  const endOf = (unit) => {
-    const d = new Date(now);
-    if (unit === 'day') return new Date(d.setHours(23, 59, 59, 999));
-    if (unit === 'week') {
-      const start = startOf('week');
-      return new Date(start.getFullYear(), start.getMonth(), start.getDate() + 6, 23, 59, 59, 999);
-    }
-    if (unit === 'month') return new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59, 999);
-  };
+    fetchData();
+    // re-fetch on filter or custom range change
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filter, customRange.from, customRange.to]);
 
-  const getFilterRange = () => {
-    switch (filter) {
-      case 'today':
-        return [startOf('day'), endOf('day')];
-      case 'yesterday':
-        const y = new Date(now);
-        y.setDate(y.getDate() - 1);
-        return [new Date(y.setHours(0, 0, 0, 0)), new Date(y.setHours(23, 59, 59, 999))];
-      case 'this_week':
-        return [startOf('week'), endOf('week')];
-      case 'last_week':
-        const sw = startOf('week');
-        sw.setDate(sw.getDate() - 7);
-        const ew = new Date(sw);
-        ew.setDate(ew.getDate() + 6);
-        return [sw, new Date(ew.setHours(23, 59, 59, 999))];
-      case 'this_month':
-        return [startOf('month'), endOf('month')];
-      case 'last_month':
-        const lm = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-        return [lm, new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999)];
-      case 'custom':
-        return [new Date(customRange.from), new Date(customRange.to)];
-      default:
-        return [null, null];
-    }
-  };
+  const summary = useMemo(() => {
+    const acc = {
+      up:  { energy: 0, grid_energy: 0, profit: 0, duration: 0, count: 0, backup: 0, cancelled: 0, grid: 0, fusebox: 0, ffr: 0, net: 0, priceSum: 0, priceCount: 0 },
+      down:{ energy: 0, grid_energy: 0, profit: 0, duration: 0, count: 0, backup: 0, cancelled: 0, grid: 0, fusebox: 0, ffr: 0, net: 0, priceSum: 0, priceCount: 0 },
+      total:{ energy: 0, grid_energy: 0, profit: 0, duration: 0, count: 0, backup: 0, cancelled: 0, grid: 0, fusebox: 0, ffr: 0, net: 0, priceSum: 0, priceCount: 0 },
+    };
 
-  const [from, to] = getFilterRange();
-  const filteredData = data.filter((entry) => {
-    if (!from || !to) return true;
-    return entry.slotStart >= from && entry.slotStart <= to;
-  });
-
-  const summary = filteredData.reduce(
-    (acc, entry) => {
+    for (const entry of data) {
       const signal = entry.signal;
       const energy = entry.energy_kwh || 0;
       const gridEnergy = entry.grid_kwh || 0;
@@ -117,14 +165,14 @@ function App() {
       const duration = entry.duration || 0;
       const isBackup = Boolean(entry.was_backup);
       const isCancelled = Boolean(entry.cancelled);
-  
+
       const gridCost = entry.grid_cost || 0;
       const fuseboxFee = entry.fusebox_fee || 0;
       const ffrIncome = entry.ffr_income || 0;
       const netTotal = entry.net_total || 0;
       const pricePerKwh = typeof entry.price_per_kwh === 'number' ? entry.price_per_kwh : null;
-  
-      // Track totals
+
+      // Totals
       acc.total.energy += energy;
       acc.total.grid_energy += gridEnergy;
       acc.total.profit += profit;
@@ -139,61 +187,31 @@ function App() {
         acc.total.priceSum += pricePerKwh;
         acc.total.priceCount += 1;
       }
-  
-      if (signal === 'UP') {
-        acc.up.energy += energy;
-        acc.up.grid_energy += gridEnergy;
-        acc.up.profit += profit;
-        acc.up.duration += duration;
-        acc.up.count++;
-        acc.up.backup += isBackup ? 1 : 0;
-        acc.up.cancelled += isCancelled ? 1 : 0;
-        acc.up.grid += gridCost;
-        acc.up.fusebox += fuseboxFee;
-        acc.up.ffr += ffrIncome;
-        acc.up.net += netTotal;
+
+      const bucket = signal === 'UP' ? acc.up : signal === 'DOWN' ? acc.down : null;
+      if (bucket) {
+        bucket.energy += energy;
+        bucket.grid_energy += gridEnergy;
+        bucket.profit += profit;
+        bucket.duration += duration;
+        bucket.count++;
+        bucket.backup += isBackup ? 1 : 0;
+        bucket.cancelled += isCancelled ? 1 : 0;
+        bucket.grid += gridCost;
+        bucket.fusebox += fuseboxFee;
+        bucket.ffr += ffrIncome;
+        bucket.net += netTotal;
         if (pricePerKwh !== null) {
-          acc.up.priceSum += pricePerKwh;
-          acc.up.priceCount += 1;
-        }
-      } else if (signal === 'DOWN') {
-        acc.down.energy += energy;
-        acc.down.grid_energy += gridEnergy;
-        acc.down.profit += profit;
-        acc.down.duration += duration;
-        acc.down.count++;
-        acc.down.backup += isBackup ? 1 : 0;
-        acc.down.cancelled += isCancelled ? 1 : 0;
-        acc.down.grid += gridCost;
-        acc.down.fusebox += fuseboxFee;
-        acc.down.ffr += ffrIncome;
-        acc.down.net += netTotal;
-        if (pricePerKwh !== null) {
-          acc.down.priceSum += pricePerKwh;
-          acc.down.priceCount += 1;
+          bucket.priceSum += pricePerKwh;
+          bucket.priceCount += 1;
         }
       }
-  
+
       acc.total.count++;
-      return acc;
-    },
-    {
-      up: {
-        energy: 0, grid_energy: 0, profit: 0, duration: 0, count: 0,
-        backup: 0, cancelled: 0, grid: 0, fusebox: 0, ffr: 0, net: 0, priceSum: 0, priceCount: 0
-      },
-      down: {
-        energy: 0, grid_energy: 0, profit: 0, duration: 0, count: 0,
-        backup: 0, cancelled: 0, grid: 0, fusebox: 0, ffr: 0, net: 0, priceSum: 0, priceCount: 0
-      },
-      total: {
-        energy: 0, grid_energy: 0, profit: 0, duration: 0, count: 0,
-        backup: 0, cancelled: 0, grid: 0, fusebox: 0, ffr: 0, net: 0, priceSum: 0, priceCount: 0
-      },
     }
-  );
 
-
+    return acc;
+  }, [data]);
 
   const formatVal = (val, digits = 2) => (val ? val.toFixed(digits) : '-');
   const percent = (count, total) => (total ? `${Math.round((count / total) * 100)}%` : '-');
@@ -216,7 +234,7 @@ function App() {
       <div style={{ marginBottom: '1rem' }}>
         <label>Filter:&nbsp;</label>
         <select value={filter} onChange={(e) => setFilter(e.target.value)}>
-          <option value="all">All</option>
+          <option value="all">All (latest)</option>
           <option value="today">Today</option>
           <option value="yesterday">Yesterday</option>
           <option value="this_week">This Week</option>
@@ -257,75 +275,82 @@ function App() {
           {darkMode ? 'Light Mode' : 'Dark Mode'}
         </button>
       </div>
+
+      {loading && <div style={{ marginBottom: '1rem' }}>Loading…</div>}
+
       <h2 style={{ marginTop: '2rem' }}>
         Summary <span style={{ fontSize: '0.8rem', fontWeight: 'normal' }}>({filter.replaceAll('_', ' ')})</span>
       </h2>
+
+      {/* Summary table unchanged */}
       <table style={{ width: '100%', marginTop: '1rem', borderCollapse: 'collapse' }}>
         <thead>
-        <tr style={{ textAlign: 'left', borderBottom: '2px solid #ddd' }}>
-          <th></th>
-          <th>Split</th>
-          <th>Count</th>
-          <th>Duration</th>
-          <th>Battery (kWh)</th>
-          <th>Grid (kWh)</th>
-          <th>MFFR</th>
-          <th>NPS</th>
-          <th>Net</th>
-          <th>Average</th>
-          <th>Backup %</th>
-          <th>Cancelled %</th>
-        </tr>
+          <tr style={{ textAlign: 'left', borderBottom: '2px solid #ddd' }}>
+            <th></th>
+            <th>Split</th>
+            <th>Count</th>
+            <th>Duration</th>
+            <th>Battery (kWh)</th>
+            <th>Grid (kWh)</th>
+            <th>MFFR</th>
+            <th>NPS</th>
+            <th>Net</th>
+            <th>Average</th>
+            <th>Backup %</th>
+            <th>Cancelled %</th>
+          </tr>
         </thead>
         <tbody>
-        <tr>
-          <td><strong>DOWN</strong></td>
-          <td data-label="Signal Split">{signalSplit.down}</td>
-          <td data-label="Count">{summary.down.count}</td>
-          <td data-label="Duration">{formatDuration(summary.down.duration)}</td>
-          <td data-label="Battery">{formatVal(summary.down.energy)} kWh</td>
-          <td data-label="Grid">{formatVal(summary.down.grid_energy)} kWh</td>
-          <td data-label="MFFR" style={{ color: summary.down.profit >= 0 ? 'green' : 'red' }}>{formatVal(summary.down.profit, 2)} €</td>
-          <td data-label="NPS" style={{ color: summary.down.grid * -1 >= 0 ? 'green' : 'red' }}>{formatVal(summary.down.grid * -1, 2)} €</td>
-          <td data-label="Net" style={{ color: summary.down.net >= 0 ? 'green' : 'red' }}>{formatVal(summary.down.net, 2)} €</td>
-          <td data-label="Average" style={{ color: summary.down.net >= 0 ? 'green' : 'red' }}>
-            {summary.down.grid_energy ? Math.round(summary.down.net / summary.down.grid_energy * 1000) : '-'} €/MWh
-          </td>
-          <td data-label="Backup (%)"> {percent(summary.down.backup, summary.down.count)}</td>
-          <td data-label="Cancelled (%)"> {percent(summary.down.cancelled, summary.down.count)}</td>
-        </tr>
-        <tr>
-          <td><strong>UP</strong></td>
-          <td data-label="Signal Split">{signalSplit.up}</td>
-          <td data-label="Count">{summary.up.count}</td>
-          <td data-label="Duration">{formatDuration(summary.up.duration)}</td>
-          <td data-label="Battery">{formatVal(summary.up.energy)} kWh</td>
-          <td data-label="Grid">{formatVal(summary.up.grid_energy)} kWh</td>
-          <td data-label="MFFR" style={{ color: summary.up.profit >= 0 ? 'green' : 'red' }}>{formatVal(summary.up.profit, 2)} €</td>
-          <td data-label="NPS" style={{ color: summary.up.grid * -1 >= 0 ? 'green' : 'red' }}>{formatVal(summary.up.grid * -1, 2)} €</td>
-          <td data-label="Net" style={{ color: summary.up.net >= 0 ? 'green' : 'red' }}>{formatVal(summary.up.net, 2)} €</td>
-          <td data-label="Average" style={{ color: summary.up.net >= 0 ? 'green' : 'red' }}>
-            {summary.up.energy ? Math.round(summary.up.net / summary.up.energy * 1000) : '-'} €/MWh
-          </td>
-          <td data-label="Backup (%)"> {percent(summary.up.backup, summary.up.count)}</td>
-          <td data-label="Cancelled (%)"> {percent(summary.up.cancelled, summary.up.count)}</td>
-        </tr>
-        <tr>
-          <td><strong>Total</strong></td>
-          <td></td>
-          <td data-label="Count">{summary.total.count}</td>
-          <td data-label="Duration">{formatDuration(summary.total.duration)}</td>
-          <td data-label="Battery">{formatVal(summary.total.energy)} kWh</td>
-          <td data-label="Grid">{formatVal(summary.total.grid_energy)} kWh</td>
-          <td data-label="MFFR" style={{ color: summary.total.profit >= 0 ? 'green' : 'red' }}>{formatVal(summary.total.profit, 2)} €</td>
-          <td data-label="NPS" style={{ color: summary.total.grid * -1 >= 0 ? 'green' : 'red' }}>{formatVal(summary.total.grid * -1, 2)} €</td>
-          <td data-label="Net" style={{ color: summary.total.net >= 0 ? 'green' : 'red' }}>{formatVal(summary.total.net, 2)} €</td>
-          <td></td>
-          <td data-label="Backup (%)"> {percent(summary.total.backup, summary.total.count)}</td>
-          <td data-label="Cancelled (%)"> {percent(summary.total.cancelled, summary.total.count)}</td>
-        </tr>
+          <tr>
+            <td><strong>DOWN</strong></td>
+            <td data-label="Signal Split">{signalSplit.down}</td>
+            <td data-label="Count">{summary.down.count}</td>
+            <td data-label="Duration">{formatDuration(summary.down.duration)}</td>
+            <td data-label="Battery">{formatVal(summary.down.energy)} kWh</td>
+            <td data-label="Grid">{formatVal(summary.down.grid_energy)} kWh</td>
+            <td data-label="MFFR" style={{ color: summary.down.profit >= 0 ? 'green' : 'red' }}>{formatVal(summary.down.profit, 2)} €</td>
+            <td data-label="NPS" style={{ color: summary.down.grid * -1 >= 0 ? 'green' : 'red' }}>{formatVal(summary.down.grid * -1, 2)} €</td>
+            <td data-label="Net" style={{ color: summary.down.net >= 0 ? 'green' : 'red' }}>{formatVal(summary.down.net, 2)} €</td>
+            <td data-label="Average" style={{ color: summary.down.net >= 0 ? 'green' : 'red' }}>
+              {summary.down.grid_energy ? Math.round(summary.down.net / summary.down.grid_energy * 1000) : '-'} €/MWh
+            </td>
+            <td data-label="Backup (%)"> {percent(summary.down.backup, summary.down.count)}</td>
+            <td data-label="Cancelled (%)"> {percent(summary.down.cancelled, summary.down.count)}</td>
+          </tr>
+          <tr>
+            <td><strong>UP</strong></td>
+            <td data-label="Signal Split">{signalSplit.up}</td>
+            <td data-label="Count">{summary.up.count}</td>
+            <td data-label="Duration">{formatDuration(summary.up.duration)}</td>
+            <td data-label="Battery">{formatVal(summary.up.energy)} kWh</td>
+            <td data-label="Grid">{formatVal(summary.up.grid_energy)} kWh</td>
+            <td data-label="MFFR" style={{ color: summary.up.profit >= 0 ? 'green' : 'red' }}>{formatVal(summary.up.profit, 2)} €</td>
+            <td data-label="NPS" style={{ color: summary.up.grid * -1 >= 0 ? 'green' : 'red' }}>{formatVal(summary.up.grid * -1, 2)} €</td>
+            <td data-label="Net" style={{ color: summary.up.net >= 0 ? 'green' : 'red' }}>{formatVal(summary.up.net, 2)} €</td>
+            <td data-label="Average" style={{ color: summary.up.net >= 0 ? 'green' : 'red' }}>
+              {summary.up.energy ? Math.round(summary.up.net / summary.up.energy * 1000) : '-'} €/MWh
+            </td>
+            <td data-label="Backup (%)"> {percent(summary.up.backup, summary.up.count)}</td>
+            <td data-label="Cancelled (%)"> {percent(summary.up.cancelled, summary.up.count)}</td>
+          </tr>
+          <tr>
+            <td><strong>Total</strong></td>
+            <td></td>
+            <td data-label="Count">{summary.total.count}</td>
+            <td data-label="Duration">{formatDuration(summary.total.duration)}</td>
+            <td data-label="Battery">{formatVal(summary.total.energy)} kWh</td>
+            <td data-label="Grid">{formatVal(summary.total.grid_energy)} kWh</td>
+            <td data-label="MFFR" style={{ color: summary.total.profit >= 0 ? 'green' : 'red' }}>{formatVal(summary.total.profit, 2)} €</td>
+            <td data-label="NPS" style={{ color: summary.total.grid * -1 >= 0 ? 'green' : 'red' }}>{formatVal(summary.total.grid * -1, 2)} €</td>
+            <td data-label="Net" style={{ color: summary.total.net >= 0 ? 'green' : 'red' }}>{formatVal(summary.total.net, 2)} €</td>
+            <td></td>
+            <td data-label="Backup (%)"> {percent(summary.total.backup, summary.total.count)}</td>
+            <td data-label="Cancelled (%)"> {percent(summary.total.cancelled, summary.total.count)}</td>
+          </tr>
         </tbody>
       </table>
+
+      {/* Detail table */}
       <table style={{ width: '100%', marginTop: '1rem', borderCollapse: 'collapse' }}>
         <thead>
           <tr style={{ textAlign: 'left', borderBottom: '2px solid #ddd' }}>
@@ -341,14 +366,15 @@ function App() {
             <th>€/MWh</th>
             <th>MFFR (€/MWh)</th>
             <th>NPS (€/MWh)</th>
+            <th>Baseline (W)</th>
             <th>Start</th>
-            <th>End</th>            
+            <th>End</th>
             <th>Backup</th>
             <th>Cancelled</th>
           </tr>
         </thead>
         <tbody>
-          {filteredData.map((entry, idx) => (
+          {data.map((entry, idx) => (
             <tr key={idx}>
               <td data-label="Date">{entry.slot_date}</td>
               <td data-label="Time">{entry.slot_time}</td>
@@ -358,7 +384,7 @@ function App() {
               <td data-label="Duration">{entry.duration ?? '-'}</td>
               <td data-label="Battery (kWh)">{entry.energy_kwh?.toFixed(2)}</td>
               <td data-label="Grid (kWh)">{entry.grid_kwh?.toFixed(2)}</td>
-              <td data-label="NPS (€)" style={{ color: entry.grid_cost * -1 >= 0 ? 'green' : 'red' }}>{safeFixed(entry.grid_cost * -1, 2)}</td>  
+              <td data-label="NPS (€)" style={{ color: entry.grid_cost * -1 >= 0 ? 'green' : 'red' }}>{safeFixed(entry.grid_cost * -1, 2)}</td>
               <td data-label="MFFR (€)" style={{ color: entry.profit >= 0 ? 'green' : 'red' }}>
                 {entry.profit === null ? '-' : `${entry.profit.toFixed(2)} €`}
               </td>
@@ -372,6 +398,7 @@ function App() {
               </td>
               <td data-label="MFFR (€/MWh)">{entry.mffr_price === null ? '-' : entry.mffr_price}</td>
               <td data-label="NPS (€/MWh)">{entry.nordpool_price === null ? '-' : (entry.nordpool_price * 1000).toFixed(2)}</td>
+              <td data-label="Baseline (W)">{formatW(entry.baseline_w)}</td>
               <td data-label="Start">
                 {new Date(entry.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}
               </td>
@@ -391,7 +418,7 @@ function App() {
                 })()}
               </td>
               <td data-label="Backup">{entry.was_backup === undefined ? '-' : entry.was_backup ? 'Yes' : 'No'}</td>
-              <td data-label="Cancelled">{entry.cancelled === undefined ? '-' : entry.cancelled ? 'Yes' : 'No'}</td>        
+              <td data-label="Cancelled">{entry.cancelled === undefined ? '-' : entry.cancelled ? 'Yes' : 'No'}</td>
             </tr>
           ))}
         </tbody>
