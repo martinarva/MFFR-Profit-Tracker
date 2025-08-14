@@ -48,6 +48,10 @@ def get_mffr_data(
 ):
     # ✅ fresh handle per request/thread
     _db = Database(DB_FILE)
+    try:
+        _db.conn.execute("PRAGMA busy_timeout=5000;")
+    except Exception:
+        pass
 
     if "slots" not in _db.table_names():
         return {}
