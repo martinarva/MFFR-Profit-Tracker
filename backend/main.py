@@ -113,7 +113,7 @@ def cleanup_zero_min_rows():
             print(f"🧹 Scheduled cleanup failed: {e}")
 
 def write_current_timeslot():
-    """Every 10s: during active FFR signals, accumulate energy & grid kWh into the current 15‑min slot."""
+    """Every 10s: during active FFR signals, accumulate energy & grid kWh into the current 15-min slot."""
     global last_signal, last_logged_signal
     db = Database(DB_PATH)
     _with_busy_timeout(db)
@@ -124,9 +124,19 @@ def write_current_timeslot():
     key = timeslot.isoformat()
     slot_end_time = timeslot + timedelta(minutes=15)
 
-    # Determine signal from battery mode
+    # --- Determine signal from battery mode (Fusebox or Kratt) ---
+    def mode_to_signal(mode: str | None) -> str | None:
+        if not mode:
+            return None
+        m = mode.strip().lower()
+        if m in {"fusebox buy", "kratt buy"}:
+            return "DOWN"
+        if m in {"fusebox sell", "kratt sell"}:
+            return "UP"
+        return None
+
     battery_mode = get_sensor_state(SENSOR_MODE)
-    signal = "DOWN" if battery_mode == "Fusebox Buy" else "UP" if battery_mode == "Fusebox Sell" else None
+    signal = mode_to_signal(battery_mode)
 
     if signal != last_logged_signal:
         print(f"🔔 Signal became {signal} at {now.isoformat()}")
@@ -136,8 +146,7 @@ def write_current_timeslot():
     if not signal:
         return
 
-    # MFFR absolute (baseline-adjusted) power → 10s energy
-    # Using HA-provided sensor that is already: battery power minus baseline
+    # --- MFFR absolute (baseline-adjusted) power → 10s energy ---
     mffr_power_w = 0.0
     s = get_sensor_state(SENSOR_MFFR_POWER)
     if s is not None:
@@ -147,7 +156,7 @@ def write_current_timeslot():
             pass
     energy_kwh = round((mffr_power_w / 1000.0) * (10.0 / 3600.0), 5)
 
-    # Grid power sample → 10s energy (signed: +import / -export)
+    # --- Grid power sample → 10s energy (signed: +import / -export) ---
     grid_power_w = 0.0
     gs = get_sensor_state(SENSOR_GRID)
     if gs is not None:
@@ -157,7 +166,7 @@ def write_current_timeslot():
             pass
     grid_kwh = round((grid_power_w / 1000.0) * (10.0 / 3600.0), 5)
 
-    # Optional: snapshot the current baseline W for this slot
+    # --- Optional: snapshot the current baseline W for this slot ---
     baseline_w = None
     if SENSOR_BASELINE:
         bs = get_sensor_state(SENSOR_BASELINE)
@@ -167,7 +176,7 @@ def write_current_timeslot():
             except ValueError:
                 baseline_w = None
 
-    # Upsert into the current slot
+    # --- Upsert into the current slot ---
     try:
         row = db["slots"].get(key)
     except NotFoundError:
@@ -196,18 +205,16 @@ def write_current_timeslot():
 
             db["slots"].update(key, update_data)
     else:
-        # Guard against sub‑2s blips right at slot boundary
+        # Guard against sub-5s blips right at slot boundary
         if (now - timeslot).total_seconds() < 5:
-            print(f"⏱️ Skipped creating short slot at {key} due to boundary jitter.")
             return
 
-        # Suppress duplicate 0‑min slot immediately after a full slot with same signal
+        # Suppress duplicate 0-min slot immediately after a full slot with same signal
         try:
             prev_slot_time = timeslot - timedelta(minutes=15)
             previous = db["slots"].get(prev_slot_time.isoformat())
             previous_end = datetime.fromisoformat(previous["end"])
             if previous["signal"] == signal and abs((now - previous_end).total_seconds()) <= 7:
-                print(f"🧹 Suppressed 0‑min slot at {key} after full slot at {prev_slot_time}")
                 return
         except NotFoundError:
             pass
@@ -230,7 +237,7 @@ def write_current_timeslot():
         }
         db["slots"].insert(entry, pk="timeslot", replace=True)
 
-    # Enrich with Nordpool price once per slot
+    # --- Enrich with Nordpool price once per slot ---
     try:
         resp = requests.get(
             f"{HA_URL}/api/states/{SENSOR_NORDPOOL}",
