@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import './App.css';
 
-const API_BASE = 'http://192.168.1.12:8099'; // keep your current base
+const API_BASE = `${window.location.protocol}//${window.location.hostname}:8099`;
 
 function App() {
   const [darkMode, setDarkMode] = useState(false);
