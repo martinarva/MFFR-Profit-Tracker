@@ -11,6 +11,7 @@ from sqlite_utils import Database
 import main
 import profit_calc
 import mffr_price_updater
+import baseline
 
 app = FastAPI()
 DB_FILE = "data/mffr.db"
@@ -96,3 +97,8 @@ def start_all_schedulers():
         profit_calc.scheduler.start()
     if not mffr_price_updater.scheduler.running:
         mffr_price_updater.scheduler.start()
+
+    # Start baseline microservice scheduler
+    if not baseline.scheduler.running:
+        print("▶️ Starting baseline scheduler")
+        baseline.scheduler.start()

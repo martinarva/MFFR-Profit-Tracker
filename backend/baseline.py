@@ -1,103 +1,159 @@
-import requests  # Only if you actually need it
-import sqlite_utils
-from datetime import datetime, timedelta
-from apscheduler.schedulers.background import BackgroundScheduler
-import pytz
-import time
+# backend/baseline.py
 import os
+from datetime import datetime
+import pytz
+import requests
+from apscheduler.schedulers.background import BackgroundScheduler
+from sqlite_utils import Database
 
 DB_PATH = "data/mffr.db"
-LOG_PATH = "logs/mffr_price_fetch_errors.log"
 tz = pytz.timezone("Europe/Tallinn")
-db = sqlite_utils.Database(DB_PATH)
-scheduler = BackgroundScheduler()
 
+HA_URL   = os.getenv("HA_URL", "http://localhost:8123")
+HA_TOKEN = os.getenv("HA_TOKEN")
 
-def calculate_and_store_baseline(now: datetime):
-    """
-    Calculate and store a new baseline value based on the current state.
-    Only store if the current timeslot is not part of an MFFR signal.
-    """
-    conn = db.conn
-    slot_start = now.replace(minute=(now.minute // 15) * 15, second=0, microsecond=0)
+SENSOR_MODE  = os.environ["SENSOR_MODE"]
+SENSOR_POWER = os.environ["SENSOR_POWER"]
 
-    # Check if there is an MFFR signal during this slot — skip baseline if yes
-    row = conn.execute("SELECT signal FROM slots WHERE slot_start = ?", (slot_start.isoformat(),)).fetchone()
-    if row and row[0] is not None:
-        print(f"[baseline.py] Skipping baseline at {slot_start} due to MFFR signal.")
-        return
+def dlog(msg: str):
+    print(f"[baseline] {datetime.now(tz).isoformat()}  {msg}")
 
-    # Fetch latest battery power as example baseline metric
-    row = conn.execute("SELECT battery_power FROM slots WHERE slot_start = ?", (slot_start.isoformat(),)).fetchone()
-    if not row:
-        print(f"[baseline.py] No battery_power data for slot {slot_start}")
-        return
-
-    battery_power = row[0]
-
-    # Insert or update baseline
-    conn.execute(
-        "INSERT OR REPLACE INTO baselines (slot_start, battery_power) VALUES (?, ?)",
-        (slot_start.isoformat(), battery_power)
-    )
-    conn.commit()
-    print(f"[baseline.py] Baseline stored for {slot_start} = {battery_power:.2f} kW")
-
-
-def maybe_delete_old_baselines(now: datetime):
-    """
-    Deletes outdated baselines. Keeps the most recent one and all used in MFFR commands.
-    """
-    conn = db.conn
-    cursor = conn.cursor()
-
-    # Fetch all baselines
-    cursor.execute("SELECT slot_start FROM baselines ORDER BY slot_start")
-    all_baselines = [datetime.fromisoformat(row[0]) for row in cursor.fetchall()]
-    if not all_baselines:
-        return
-
-    # Fetch all MFFR signal slots
-    cursor.execute("SELECT slot_start FROM slots WHERE signal IS NOT NULL")
-    mffr_slots = {datetime.fromisoformat(row[0]) for row in cursor.fetchall()}
-
-    keep = set()
-    for i, start in enumerate(all_baselines):
-        next_start = start + timedelta(minutes=15)
-
-        # Keep baseline if its next slot or next 3 slots are used in MFFR
-        if next_start in mffr_slots or any(ts in mffr_slots for ts in all_baselines[i + 1:i + 4]):
-            keep.add(start)
-
-    # Always keep the latest baseline
-    keep.add(all_baselines[-1])
-
-    # Delete old baselines not in keep
-    to_delete = [ts for ts in all_baselines if ts not in keep and ts < now - timedelta(minutes=15)]
-    if to_delete:
-        print(f"[baseline.py] Deleting {len(to_delete)} outdated baselines")
-        cursor.executemany("DELETE FROM baselines WHERE slot_start = ?", [(ts.isoformat(),) for ts in to_delete])
-        conn.commit()
-
-
-def run():
-    now = datetime.now(tz)
+def _open_db() -> Database:
+    db = Database(DB_PATH)
     try:
-        calculate_and_store_baseline(now)
-        maybe_delete_old_baselines(now)
-    except Exception as e:
-        with open(LOG_PATH, "a") as f:
-            f.write(f"[{now.isoformat()}] Error in baseline.py: {e}\n")
-        print(f"[baseline.py] Error: {e}")
+        db.conn.execute("PRAGMA journal_mode=WAL;")
+        db.conn.execute("PRAGMA synchronous=NORMAL;")
+        db.conn.execute("PRAGMA busy_timeout=5000;")
+    except Exception:
+        pass
+    return db
 
+def _ensure_schema():
+    db = _open_db()
+    try:
+        db["baseline_state"].create({
+            "key": str,
+            "baseline_w": float,
+            "computed_for_slot": str,
+            "energy_Wh": float,
+            "updated_at": str
+        }, pk="key", if_not_exists=True)
+    finally:
+        try:
+            db.conn.close()
+        except Exception:
+            pass
+
+_ensure_schema()
+
+def reset_baseline_table():
+    try:
+        db = Database(DB_PATH)
+        db["baseline_state"].delete_where("1=1")
+        db.conn.commit()
+        print("🧹 Cleared baseline_state on startup")
+    except Exception as e:
+        print(f"❌ Failed to clear baseline_state: {e}")
+
+reset_baseline_table()
+
+_prev_t = None
+_prev_p = None
+accum_Wh = 0.0
+saw_mffr = False
+current_slot = None
+
+def _mode_to_signal(mode: str | None):
+    if not mode:
+        return None
+    m = mode.strip().lower()
+    if m in {"fusebox buy", "kratt buy"}:
+        return "DOWN"
+    if m in {"fusebox sell", "kratt sell"}:
+        return "UP"
+    return None
+
+def _slot_anchor(dt: datetime):
+    return dt.replace(minute=(dt.minute // 15) * 15, second=0, microsecond=0)
+
+def _ha_state(entity_id: str):
+    try:
+        r = requests.get(
+            f"{HA_URL}/api/states/{entity_id}",
+            headers={"Authorization": f"Bearer {HA_TOKEN}", "Content-Type": "application/json"},
+            timeout=5
+        )
+        if not r.ok:
+            return None
+        s = r.json().get("state")
+        return None if s in ("unknown", "unavailable", None) else s
+    except Exception:
+        return None
+
+def tick():
+    global _prev_t, _prev_p, accum_Wh, saw_mffr, current_slot
+    now = datetime.now(tz)
+    slot = _slot_anchor(now)
+
+    if current_slot is None:
+        current_slot = slot
+
+    if slot > current_slot:
+        EPS = 1e-6
+        if abs(accum_Wh) > EPS and not saw_mffr:
+            avg_w = round((accum_Wh * 3600.0) / 900.0, 2)
+            try:
+                db = _open_db()
+                with db.conn:
+                    db["baseline_state"].upsert({
+                        "key": "latest",
+                        "baseline_w": avg_w,
+                        "computed_for_slot": current_slot.isoformat(),
+                        "energy_Wh": round(accum_Wh, 3),
+                        "updated_at": now.isoformat()
+                    }, pk="key")
+                dlog(f"Updated baseline: {avg_w} W (slot {current_slot.isoformat()}, energy {accum_Wh:.3f} Wh)")
+            except Exception:
+                pass
+            finally:
+                try:
+                    db.conn.close()
+                except Exception:
+                    pass
+
+        current_slot = slot
+        _prev_t = None
+        _prev_p = None
+        accum_Wh = 0.0
+        saw_mffr = False
+
+    p = _ha_state(SENSOR_POWER)
+    if p is not None:
+        try:
+            p = float(p)
+        except ValueError:
+            p = None
+
+    mode = _ha_state(SENSOR_MODE)
+    sig = _mode_to_signal(mode)
+    if sig and not saw_mffr:
+        saw_mffr = True
+
+    if p is not None:
+        if _prev_t is not None and _prev_p is not None:
+            dt_s = (now - _prev_t).total_seconds()
+            if dt_s > 0:
+                dE = (_prev_p * dt_s) / 3600.0
+                accum_Wh += dE
+        _prev_t = now
+        _prev_p = p
+
+scheduler = BackgroundScheduler()
+scheduler.add_job(tick, "interval", seconds=10, max_instances=1, coalesce=True)
 
 if __name__ == "__main__":
-    run()
-    scheduler.add_job(run, "interval", minutes=15, next_run_time=datetime.now(tz))
+    print("▶️ baseline service started")
     scheduler.start()
-
-    try:
-        while True:
-            time.sleep(1)
-    except (KeyboardInterrupt, SystemExit):
-        scheduler.shutdown()
+    import time
+    while True:
+        time.sleep(3600)
